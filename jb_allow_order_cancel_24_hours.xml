@@ -1,0 +1,221 @@
+<modification>
+        <id>VQMOD Customer Allow to Cancel Order 24 hours</id>
+        <version>1.0</version>
+        <vqmver>2.1.7</vqmver>
+        <author>jericbas</author>
+        
+         <file name="catalog/controller/account/order.php">
+        	
+        	<operation>
+                        <search position="before" ><![CDATA[$this->data['order_id'] = $this->request->get['order_id'];]]></search>
+                        <add><![CDATA[$this->data['order_info']=$order_info;]]></add>
+                </operation>
+        </file>
+        
+        <file name="catalog/view/theme/*/template/account/order_info.tpl">
+                <operation>
+                        <search position="replace" ><![CDATA[<?php echo $text_order_detail; ?>]]></search>
+                        <add><![CDATA[<?php echo $text_order_detail;
+                        	
+                        	
+                        	 $hourdiff = round((strtotime($order_info['date_added']) - time())/3600, 1);
+							
+                        	 $config_cancel_order_hours = $this->config->get('config_cancel_order_hours'); 
+                        	 
+                        	 if($config_cancel_order_hours and $hourdiff>0 and $hourdiff<=$config_cancel_order_hours){ 
+                        	 
+                        	 ?> <a style="float:right;" id="jb-cancel-order" href="#">Cancel this Order</a><?php
+                        	 
+                        	  } ?>]]></add>
+                </operation>
+                <operation>
+                        <search position="before" ><![CDATA[<?php echo $footer; ?>]]></search>
+                        <add><![CDATA[
+                        	<script>
+                        		$(document).ready(function(){$('#jb-cancel-order').click(function(){
+                        				if(confirm('Are you sure want to cancel this?')) {
+                        				$.post('index.php?route=account/order/jbcancelorder',{order_id:<?php echo $order_id; ?>,email:'<?php echo $this->customer->getEmail();?>'},function(e){
+                        				if(e.status=='ok'){
+                        					$('#jb-cancel-order').remove();
+                        				}
+                        				
+	                        			},'json');
+                        				}
+	                        			
+	                        			
+	                        			return false;
+	                        		});});
+                        	</script>]]></add>
+                </operation>
+                
+                
+                 
+        </file>
+        
+     <file name="catalog/model/account/order.php">
+                <operation>
+                        <search position="before" ><![CDATA[public function getOrder($order_id) {]]></search>
+        				<add><![CDATA[
+        	public function updateProductQuantity($product_id,$additional){
+            $product_info = $this->db->query("SELECT quantity FROM `" . DB_PREFIX . "product` WHERE product_id=" . $product_id);
+            foreach($product_info->rows as $product){
+                $new_quantity =  $product['quantity'] +$additional;
+             }
+             $query = $this->db->query("UPDATE `" . DB_PREFIX . "product` SET `quantity` ="  . $new_quantity .  " where `product_id`=" . $product_id);}]]>
+        </add>
+                </operation>
+ 
+                 
+        </file>
+        
+        
+        
+        
+        
+           <file name="catalog/controller/account/order.php">
+                <operation>
+                        <search position="before" ><![CDATA[public function index() {]]></search>
+        				<add><![CDATA[
+ 				public function jbcancelorder(){
+        if ($this->customer->isLogged()) {
+            if($this->customer->getEmail()==$this->request->post['email']){
+                $order_id = $this->request->post['order_id'];
+                $this->load->model('account/order');
+                $order_info = $this->model_account_order->getOrder($order_id);
+                
+                if ($order_info) {
+                $order_products = $this->model_account_order->getOrderProducts($order_id);
+                     foreach($order_products as $product){
+                         $this->model_account_order->updateProductQuantity($product['product_id'],$product['quantity']);}
+                   $this->load->model('checkout/order');
+                   $this->model_checkout_order->update($order_id,$this->config->get('config_cancel_order_status_id'),'Cancel by the customer ' . date('F d, Y H:i:s'));
+                   echo json_encode(array('status'=>'ok'));
+                }
+            }
+        }
+    }]]>
+        </add>
+                </operation>
+ 
+                 
+        </file>
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+		<file name="admin/language/english/setting/setting.php">
+                <operation>
+                	<search position="after" ><![CDATA[$_['text_return']                  = 'Returns';]]></search>
+                	<add><![CDATA[
+                		$_['text_cancel_order']= 'Cancel Order';
+                		$_['entry_cancel_order_status']= 'Status of Cancelled Order <span class="help">Status after the customer cancel order</span>';
+                		$_['entry_cancel_order_hours']= 'Time allowance to cancel in hours<span class="help">Disable if the value is zero(0) </span>';
+                		
+                		]]></add>
+                </operation>	      
+        </file>
+
+        
+        <file name="admin/controller/setting/setting.php">
+                <operation>
+                	<search position="after" ><![CDATA[$this->data['text_return'] = $this->language->get('text_return');]]></search>
+                	<add><![CDATA[
+                		$this->data['text_cancel_order'] = $this->language->get('text_cancel_order');
+                		$this->data['entry_cancel_order_status'] = $this->language->get('entry_cancel_order_status');
+                		$this->data['entry_cancel_order_hours'] = $this->language->get('entry_cancel_order_hours');
+                		
+                		]]></add>
+                	
+             
+                </operation>	
+                <operation>
+                	   	<search position="after" ><![CDATA[$this->load->model('localisation/return_status');]]></search>
+                	<add><![CDATA[
+					if (isset($this->request->post['config_cancel_order_status_id'])) {
+						$this->data['config_cancel_order_status_id'] = $this->request->post['config_cancel_order_status_id'];
+					} else {$this->data['config_cancel_order_status_id'] = $this->config->get('config_cancel_order_status_id');}
+                	
+                	
+                	if (isset($this->request->post['config_cancel_order_hours'])) {
+						$this->data['config_cancel_order_hours'] = $this->request->post['config_cancel_order_hours'];
+					} else {
+					$this->data['config_cancel_order_hours'] = $this->config->get('config_cancel_order_hours');
+					}
+
+                	]]></add>
+                </operation>      
+        </file>
+        
+        
+        
+        
+        
+        
+
+
+
+
+		<file name="admin/view/template/setting/setting.tpl">
+                <operation>
+                	<search position="before" offset="1"  ><![CDATA[<div id="tab-image">]]></search>
+                	<add><![CDATA[
+<h2><?php echo $text_cancel_order; ?></h2>
+          <table class="form">
+            <tr>
+              <td><?php echo $entry_cancel_order_status; ?></td>
+              <td><select name="config_cancel_order_status_id">
+                  <?php foreach ($order_statuses as $order_status) { ?>
+                  <?php if ($order_status['order_status_id'] == $config_cancel_order_status_id) { ?>
+                  <option value="<?php echo $order_status['order_status_id']; ?>" selected="selected"><?php echo $order_status['name']; ?></option>
+                  <?php } else { ?>
+                  <option value="<?php echo $order_status['order_status_id']; ?>"><?php echo $order_status['name']; ?></option>
+                  <?php } ?>
+                  <?php } ?>
+                </select></td>
+            </tr>
+            
+            <tr>
+              <td><?php echo $entry_cancel_order_hours; ?></td>
+              <td>
+              	<input type="text" name="config_cancel_order_hours" value="<?php echo $config_cancel_order_hours; ?>" size="3"  /> <span>hrs</span>
+              </td>
+            </tr>
+          </table>
+       		]]></add>
+                </operation>	      
+        </file>
+
+
+
+
+
+
+		
+
+   
+   
+   
+   
+   
+   
+
+</modification>
